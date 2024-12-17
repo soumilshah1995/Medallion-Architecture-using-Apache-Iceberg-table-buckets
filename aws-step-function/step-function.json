@@ -1,0 +1,71 @@
+{
+  "Comment": "Medallion Pipeline with S3 tables",
+  "StartAt": "RawBronzeStep",
+  "States": {
+    "RawBronzeStep": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+      "Parameters": {
+        "ClusterId.$": "$.clusterId",
+        "Step": {
+          "Name.$": "$.stepName",
+          "ActionOnFailure": "CONTINUE",
+          "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args.$": "$.jobs.RawBronze"
+          }
+        }
+      },
+      "ResultPath": null,
+      "Next": "PreserveInput",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "Next": "FailState"
+        }
+      ]
+    },
+    "PreserveInput": {
+      "Type": "Pass",
+      "ResultPath": "$.originalInput",
+      "Next": "BronzeToSilverStep"
+    },
+    "BronzeToSilverStep": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+      "Parameters": {
+        "ClusterId.$": "$.originalInput.clusterId",
+        "Step": {
+          "Name.$": "$.originalInput.stepName",
+          "ActionOnFailure": "CONTINUE",
+          "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args.$": "$.originalInput.jobs.BronzeToSilver"
+          }
+        }
+      },
+      "ResultPath": null,
+      "Next": "SuccessState",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "Next": "FailState"
+        }
+      ]
+    },
+    "SuccessState": {
+      "Type": "Pass",
+      "Result": "Job completed successfully!",
+      "End": true
+    },
+    "FailState": {
+      "Type": "Fail",
+      "Error": "JobFailed",
+      "Cause": "The EMR job failed to complete."
+    }
+  }
+}
